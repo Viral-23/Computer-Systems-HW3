@@ -3,22 +3,46 @@
 #include <signal.h>
 
 #define NUM_THREADS 3
-void *compute_sum(void *s);
+void *compute_sum(void *threadstruct);
 
 struct thread_data {
     pthread_t id;
     int sum;
+    int threadNum;
 };
 
 struct thread_data thread[NUM_THREADS];
 
-void *compute_sum(void *s) {
-    struct thread_data *data = (struct thread_data*) thread;
-    int id = thread->id;
-    int sum = thread->sum;
+void sig_handler(int sigNum) {
+    printf("Signal %d received in thread\n", sigNum);
+    sigset_t mask;
+    sigemptyset(&mask);
+    if (sigNum == SIGFPE) {
+        sigaddset(&mask, SIGSTOP);
+        sigaddset(&mask, SIGSEGV);
+    }
+    else if (sigNum == SIGSTOP) {
+        sigaddset(&mask, SIGFPE);
+        sigaddset(&mask, SIGSEGV);
+    }
+    else if (sigNum == SIGSEGV) {
+        sigaddset(&mask, SIGFPE);
+        sigaddset(&mask, SIGSTOP);
+    }
+    sigprocmask(SIG_BLOCK, &mask, NULL);
+    signal(sigNum, sig_handler);
 
+}
+
+void *compute_sum(void *threadstruct) {
+    signal(SIGFPE, sig_handler);
+    signal(SIGSTOP, sig_handler);
+    signal(SIGSEGV, sig_handler);
+
+    struct thread_data *data = (struct thread_data*) threadstruct;
+    long id = (long) data->id;
     for (int i = 1; i < 1000 * id; i++) {
-        sum += i;
+        data->sum += i;
     }
 
     pthread_exit(0);
@@ -31,18 +55,16 @@ int main() {
 
     int sum = 0;
     for (int i = 0; i < NUM_THREADS; i++) {
-        if (i == 0)
-            thread[i].id = pthread_create(&thread[i].id, thread_sigfpe, compute_sum, &thread[i]);
-        else if (i == 1)
-            thread[i].id = pthread_create(&thread[i].id, thread_sigstop, compute_sum, &thread[i]);
-        else
-            thread[i].id = pthread_create(&thread[i].id, thread_sigsegv, compute_sum, &thread[i]);
+        thread[i].sum = 0;
+        thread[i].threadNum = i;
+        pthread_create(&thread[i].id, NULL, compute_sum, &thread[i]);
     }
 
     int totalSum = 0;
     for (int i = 0; i < NUM_THREADS; i++) {
         void *status;
         pthread_join(thread[i].id, &status);
+        totalSum += thread[i].sum;
     }
     printf("Total sum = %d\n", totalSum);
     
