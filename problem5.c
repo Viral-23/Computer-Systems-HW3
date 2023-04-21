@@ -3,16 +3,20 @@
 #include <signal.h>
 
 #define NUM_THREADS 3
+
 void *compute_sum(void *threadstruct);
 
+// Structure to hold relevant thread data
 struct thread_data {
     pthread_t id;
     int sum;
     int threadNum;
 };
 
+// Initialize structure
 struct thread_data thread[NUM_THREADS];
 
+// Handles signals, blocks the signals that are not received
 void sig_handler(int sigNum) {
     printf("Signal %d received in thread\n", sigNum);
     sigset_t mask;
@@ -34,6 +38,7 @@ void sig_handler(int sigNum) {
 
 }
 
+// Thread function to compute the sum
 void *compute_sum(void *threadstruct) {
     signal(SIGFPE, sig_handler);
     signal(SIGSTOP, sig_handler);
@@ -49,10 +54,12 @@ void *compute_sum(void *threadstruct) {
 }
 
 int main() {
+    // Ignores signals in main
     signal(SIGFPE, SIG_IGN);
     signal(SIGSTOP, SIG_IGN);
     signal(SIGSEGV, SIG_IGN);
 
+    // Creates threads
     int sum = 0;
     for (int i = 0; i < NUM_THREADS; i++) {
         thread[i].sum = 0;
@@ -60,6 +67,7 @@ int main() {
         pthread_create(&thread[i].id, NULL, compute_sum, &thread[i]);
     }
 
+    // Joins threads to calculate the total sum
     int totalSum = 0;
     for (int i = 0; i < NUM_THREADS; i++) {
         void *status;
@@ -68,6 +76,7 @@ int main() {
     }
     printf("Total sum = %d\n", totalSum);
     
+    // Return signal handling to default
     signal(SIGFPE, SIG_DFL);
     signal(SIGSTOP, SIG_DFL);
     signal(SIGSEGV, SIG_DFL);
